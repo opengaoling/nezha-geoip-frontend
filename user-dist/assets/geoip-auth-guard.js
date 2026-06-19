@@ -36,6 +36,7 @@
   }
 
   function redirectForAuth() {
+    if (window.location.pathname.indexOf("/dashboard") !== 0) return;
     if (redirected) return;
     redirected = true;
     clearAuthStorage();
