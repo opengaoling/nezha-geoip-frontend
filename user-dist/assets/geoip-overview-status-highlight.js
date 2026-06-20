@@ -7,21 +7,26 @@
   var currentStatus = "online";
   var defaultApplied = false;
   var syncing = false;
+  var labels = {
+    all: ["全部服务器", "總伺服器", "Total Servers"],
+    online: ["在线服务器", "線上伺服器", "Online Servers"],
+    offline: ["离线服务器", "離線伺服器", "Offline Servers"]
+  };
 
   function ensureStyle() {
     if (document.getElementById(styleId)) return;
     var style = document.createElement("style");
     style.id = styleId;
     style.textContent = [
-      ".server-overview > ." + selectedClass + " {",
+      "." + selectedClass + " {",
       "  border-color: rgb(34 197 94) !important;",
       "  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.95), 0 0 0 5px rgba(34, 197, 94, 0.14) !important;",
       "}",
-      ".dark .server-overview > ." + selectedClass + " {",
+      ".dark ." + selectedClass + " {",
       "  border-color: rgb(22 163 74) !important;",
       "  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.95), 0 0 0 5px rgba(34, 197, 94, 0.2) !important;",
       "}",
-      ".server-overview > ." + selectedClass + ":focus-visible {",
+      "." + selectedClass + ":focus-visible {",
       "  outline: 2px solid rgba(34, 197, 94, 0.95);",
       "  outline-offset: 2px;",
       "}"
@@ -29,10 +34,69 @@
     document.head.appendChild(style);
   }
 
+  function isVisible(element) {
+    if (!element) return false;
+    var rect = element.getBoundingClientRect();
+    var style = window.getComputedStyle(element);
+    return rect.width > 1 && rect.height > 1 && style.display !== "none" && style.visibility !== "hidden";
+  }
+
+  function normalizedText(element) {
+    return (element && element.innerText ? element.innerText : "").replace(/\s+/g, " ").trim();
+  }
+
+  function hasLabel(element, status) {
+    var text = normalizedText(element);
+    return labels[status].some(function (label) {
+      return text.indexOf(label) !== -1;
+    });
+  }
+
+  function clickableCard(element) {
+    var current = element;
+    var root = document.getElementById("root");
+    while (current && current !== root) {
+      if (current.matches && (current.matches("button, [role='button'], a") || current.onclick || current.tabIndex >= 0)) {
+        return current;
+      }
+      var rect = current.getBoundingClientRect();
+      if (rect.width >= 80 && rect.height >= 40 && /\bborder\b|\brounded\b|\bshadow\b|\bcard\b/.test(current.className || "")) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return element;
+  }
+
+  function cardsFromOverview() {
+    var blocks = Array.prototype.slice.call(document.querySelectorAll("#root .server-overview"));
+    for (var i = 0; i < blocks.length; i += 1) {
+      if (!isVisible(blocks[i])) continue;
+      var children = Array.prototype.slice.call(blocks[i].children).filter(isVisible).slice(0, 3);
+      if (children.length >= 3 && hasLabel(children[0], "all") && hasLabel(children[1], "online") && hasLabel(children[2], "offline")) {
+        return children;
+      }
+    }
+    return [];
+  }
+
+  function cardByLabel(status) {
+    var nodes = Array.prototype.slice.call(document.querySelectorAll("#root *")).filter(function (element) {
+      return isVisible(element) && hasLabel(element, status);
+    });
+    nodes.sort(function (a, b) {
+      return normalizedText(a).length - normalizedText(b).length;
+    });
+    return nodes.length ? clickableCard(nodes[0]) : null;
+  }
+
   function overviewCards() {
-    var overview = document.querySelector("#root .server-overview");
-    if (!overview) return [];
-    return Array.prototype.slice.call(overview.children, 0, 3);
+    var cards = cardsFromOverview();
+    if (cards.length >= 3) return cards;
+
+    cards = [cardByLabel("all"), cardByLabel("online"), cardByLabel("offline")];
+    if (cards.every(Boolean)) return cards;
+    return [];
   }
 
   function statusIndex(status) {
