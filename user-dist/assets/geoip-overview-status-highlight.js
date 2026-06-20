@@ -7,8 +7,9 @@
   var currentStatus = "online";
   var defaultApplied = false;
   var syncing = false;
+  var lastUserSelectedAt = 0;
   var labels = {
-    all: ["全部服务器", "總伺服器", "Total Servers"],
+    all: ["服务器总数", "全部服务器", "總伺服器", "Total Servers"],
     online: ["在线服务器", "線上伺服器", "Online Servers"],
     offline: ["离线服务器", "離線伺服器", "Offline Servers"]
   };
@@ -106,6 +107,7 @@
   }
 
   function detectReactStatus(cards) {
+    if (cards[0] && (cards[0].classList.contains("ring-2") || /\bring-blue-\d+/.test(cards[0].className || ""))) return "all";
     if (cards[1] && cards[1].classList.contains("ring-2")) return "online";
     if (cards[2] && cards[2].classList.contains("ring-2")) return "offline";
     return null;
@@ -132,7 +134,8 @@
       var cards = overviewCards();
       if (cards.length < 3) return;
       var detected = detectReactStatus(cards);
-      applySelected(detected || currentStatus);
+      var recentlyClicked = Date.now() - lastUserSelectedAt < 1200;
+      applySelected(recentlyClicked ? currentStatus : detected || currentStatus);
     });
   }
 
@@ -143,6 +146,7 @@
       if (cards[index].__geoipOverviewStatusBound) return;
       cards[index].__geoipOverviewStatusBound = true;
       cards[index].addEventListener("click", function () {
+        lastUserSelectedAt = Date.now();
         applySelected(status);
         window.setTimeout(syncFromDom, 0);
       });
