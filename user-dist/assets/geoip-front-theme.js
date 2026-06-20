@@ -2,10 +2,11 @@
   if (window.__geoipFrontThemeInstalled) return;
   window.__geoipFrontThemeInstalled = true;
 
-  var version = "front-theme-20260619a";
+  var version = "front-theme-20260620a";
   var scripts = [
     "/assets/geoip-dashboard-link-fix-20260614.js",
     "/assets/geoip-auth-guard.js",
+    "/assets/geoip-overview-status-highlight.js",
     "/assets/geoip-desktop-layout-loader-20260613c.js",
     "/assets/geoip-scroll-tools.js"
   ];
