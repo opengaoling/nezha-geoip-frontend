@@ -107,7 +107,7 @@
   }
 
   function detectReactStatus(cards) {
-    if (cards[0] && (cards[0].classList.contains("ring-2") || /\bring-blue-\d+/.test(cards[0].className || ""))) return "all";
+    if (cards[0] && cards[0].classList.contains("ring-2")) return "all";
     if (cards[1] && cards[1].classList.contains("ring-2")) return "online";
     if (cards[2] && cards[2].classList.contains("ring-2")) return "offline";
     return null;
