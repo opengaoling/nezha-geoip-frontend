@@ -2,7 +2,7 @@
   if (window.__geoipAdminThemeInstalled) return;
   window.__geoipAdminThemeInstalled = true;
 
-  var version = "admin-theme-20260624a";
+  var version = "admin-theme-20260624c";
   var scripts = [
     "/dashboard/assets/geoip-auth-guard.js",
     "/dashboard/assets/geoip-session-timeout-setting-20260616.js",
