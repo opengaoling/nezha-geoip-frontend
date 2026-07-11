@@ -114,10 +114,9 @@
 
   function shouldRedirect(response) {
     if (!response) return false;
-    if (response.status === 401 || response.status === 403) return true;
     if (response.headers && response.headers.get(authHeader) === "1") return true;
-    var contentType = response.headers && response.headers.get("content-type");
-    return contentType && contentType.indexOf("text/html") !== -1;
+    if (response.status === 401) return true;
+    return false;
   }
 
   var nativeFetch = window.fetch;
@@ -166,11 +165,11 @@
     NativeXHR.prototype.send = function () {
       if (this.__nezhaApiRequest) {
         this.addEventListener("load", function () {
-          var contentType = "";
+          var authInvalid = "";
           try {
-            contentType = this.getResponseHeader("content-type") || "";
+            authInvalid = this.getResponseHeader(authHeader) || "";
           } catch (_e) {}
-          if (this.status === 401 || this.status === 403 || contentType.indexOf("text/html") !== -1) {
+          if (this.status === 401 || authInvalid === "1") {
             redirectForAuth();
           }
         });
