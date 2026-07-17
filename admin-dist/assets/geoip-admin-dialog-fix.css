@@ -1,0 +1,46 @@
+/* Keep admin form dialog actions reachable on short viewports. */
+#root [role="dialog"] {
+  max-height: calc(100dvh - 2rem) !important;
+  overflow: hidden !important;
+}
+
+#root [role="dialog"] [data-radix-scroll-area-root] {
+  display: flex !important;
+  min-height: 0 !important;
+  max-height: calc(100dvh - 5rem) !important;
+  flex-direction: column !important;
+}
+
+#root [role="dialog"] [data-radix-scroll-area-viewport] {
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+#root [role="dialog"] form > div[class*="justify-end"]:last-child {
+  position: sticky !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 5 !important;
+  margin: 0.75rem -0.75rem -0.75rem !important;
+  padding: 0.75rem !important;
+  border-top: 1px solid hsl(var(--border)) !important;
+  background: hsl(var(--background) / 0.96) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+#root [role="dialog"] form > div[class*="justify-end"]:last-child button {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+@media (max-width: 640px) {
+  #root [role="dialog"] {
+    width: calc(100vw - 1rem) !important;
+    max-height: calc(100dvh - 1rem) !important;
+  }
+
+  #root [role="dialog"] [data-radix-scroll-area-root] {
+    max-height: calc(100dvh - 3rem) !important;
+  }
+}
