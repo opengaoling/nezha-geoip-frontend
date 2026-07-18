@@ -6,6 +6,9 @@
   var ALL_VALUE = "__all__";
   var state = {
     groups: null,
+    serverStatus: null,
+    serverStatusPromise: null,
+    serverStatusRequestedAt: 0,
     selected: sessionStorage.getItem(STORAGE_KEY) || ALL_VALUE,
     observer: null,
     applying: false
@@ -50,14 +53,88 @@
       });
   }
 
+  function isOnline(server) {
+    if (typeof server.online === "boolean") return server.online;
+    if (!server.last_active) return false;
+    var lastActive = new Date(server.last_active).getTime();
+    if (!Number.isFinite(lastActive) || lastActive <= 0) return false;
+    return Date.now() - lastActive < 35000;
+  }
+
+  function requestServerStatus(force) {
+    var now = Date.now();
+    if (!force && state.serverStatus && now - state.serverStatusRequestedAt < 15000) {
+      return Promise.resolve(state.serverStatus);
+    }
+    if (state.serverStatusPromise) return state.serverStatusPromise;
+
+    state.serverStatusRequestedAt = now;
+    state.serverStatusPromise = fetch("/api/v1/server", {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" }
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("server status request failed");
+        return response.json();
+      })
+      .then(function (payload) {
+        var servers = Array.isArray(payload && payload.data) ? payload.data : [];
+        var status = new Map();
+        servers.forEach(function (server) {
+          if (server && server.id) status.set(String(server.id), isOnline(server));
+        });
+        state.serverStatus = status;
+        return status;
+      })
+      .catch(function () {
+        state.serverStatus = state.serverStatus || new Map();
+        return state.serverStatus;
+      })
+      .finally(function () {
+        state.serverStatusPromise = null;
+      });
+    return state.serverStatusPromise;
+  }
+
   function serverIdFromRow(row) {
+    var cell = serverIdCellFromRow(row);
+    return cell ? serverIdFromCell(cell) : "";
+  }
+
+  function serverIdFromCell(cell) {
+    var text = (cell.textContent || "").trim();
+    var match = text.match(/^(\d+)(?:\s*\(|\b)/);
+    return match ? match[1] : "";
+  }
+
+  function serverIdCellFromRow(row) {
     var cells = Array.prototype.slice.call(row.querySelectorAll("td"));
     for (var i = 0; i < cells.length; i += 1) {
-      var text = (cells[i].textContent || "").trim();
-      var match = text.match(/^(\d+)(?:\s*\(|\b)/);
-      if (match) return match[1];
+      if (serverIdFromCell(cells[i])) return cells[i];
     }
-    return "";
+    return null;
+  }
+
+  function applyServerStatus() {
+    if (!isServerPage() || !state.serverStatus) return;
+    var rows = document.querySelectorAll("#root tbody tr");
+    rows.forEach(function (row) {
+      var cell = serverIdCellFromRow(row);
+      if (!cell) return;
+      var id = serverIdFromCell(cell);
+      var online = state.serverStatus.get(id);
+      var dot = cell.querySelector(":scope > .geoip-admin-server-status-dot");
+      if (!dot) {
+        dot = document.createElement("span");
+        dot.className = "geoip-admin-server-status-dot";
+        dot.setAttribute("aria-hidden", "true");
+        cell.insertBefore(dot, cell.firstChild);
+      }
+      var label = online === true ? "在线" : online === false ? "离线" : "未知";
+      dot.setAttribute("data-status", online === true ? "online" : online === false ? "offline" : "unknown");
+      dot.title = label;
+      cell.setAttribute("data-geoip-admin-server-status", label);
+    });
   }
 
   function selectedGroup() {
@@ -79,6 +156,7 @@
         if (!shouldHide && isHidden) row.removeAttribute("data-geoip-group-filter-hidden");
       });
       updateButtons();
+      applyServerStatus();
     } finally {
       state.applying = false;
     }
@@ -151,6 +229,7 @@
     scheduleMount.timer = window.setTimeout(function () {
       mountFilter();
       applyFilter();
+      requestServerStatus(false).then(applyServerStatus);
     }, 80);
   }
 
@@ -170,6 +249,9 @@
     state.observer = new MutationObserver(scheduleMount);
     state.observer.observe(document.documentElement, { childList: true, subtree: true });
     scheduleMount();
+    window.setInterval(function () {
+      if (isServerPage()) requestServerStatus(true).then(applyServerStatus);
+    }, 20000);
   }
 
   if (document.readyState === "loading") {
