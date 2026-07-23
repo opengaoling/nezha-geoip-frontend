@@ -2,14 +2,34 @@
   "use strict";
 
   var STORAGE_KEY = "geoip-admin-server-group-filter";
+  var STATUS_STORAGE_KEY = "geoip-admin-server-status-filter";
+  var FACET_STORAGE_KEY = "geoip-admin-server-facet-filter";
   var FILTER_ID = "geoip-admin-server-group-filter";
   var ALL_VALUE = "__all__";
+  var STATUS_ALL = "all";
+  var STATUS_ONLINE = "online";
+  var STATUS_OFFLINE = "offline";
+  var FACET_ALL = "__all__";
+  var FACET_UNKNOWN = "__unknown__";
+  var savedFacets = {};
+  try {
+    savedFacets = JSON.parse(sessionStorage.getItem(FACET_STORAGE_KEY) || "{}");
+  } catch (_) {
+    sessionStorage.removeItem(FACET_STORAGE_KEY);
+  }
   var state = {
     groups: null,
     serverStatus: null,
+    serverFacets: null,
     serverStatusPromise: null,
     serverStatusRequestedAt: 0,
     selected: sessionStorage.getItem(STORAGE_KEY) || ALL_VALUE,
+    selectedStatus: sessionStorage.getItem(STATUS_STORAGE_KEY) || STATUS_ALL,
+    selectedFacets: {
+      system: savedFacets.system || FACET_ALL,
+      region: savedFacets.region || FACET_ALL,
+      organization: savedFacets.organization || FACET_ALL
+    },
     observer: null,
     applying: false
   };
@@ -61,6 +81,11 @@
     return Date.now() - lastActive < 35000;
   }
 
+  function facetValue(value) {
+    var normalized = String(value || "").trim();
+    return normalized || FACET_UNKNOWN;
+  }
+
   function requestServerStatus(force) {
     var now = Date.now();
     if (!force && state.serverStatus && now - state.serverStatusRequestedAt < 15000) {
@@ -80,10 +105,20 @@
       .then(function (payload) {
         var servers = Array.isArray(payload && payload.data) ? payload.data : [];
         var status = new Map();
+        var facets = new Map();
         servers.forEach(function (server) {
-          if (server && server.id) status.set(String(server.id), isOnline(server));
+          if (!server || !server.id) return;
+          var id = String(server.id);
+          status.set(id, isOnline(server));
+          facets.set(id, {
+            system: facetValue(server.host && server.host.platform),
+            region: facetValue((server.geoip && server.geoip.country_code) || server.country_code),
+            organization: facetValue((server.geoip && server.geoip.organization) || server.organization)
+          });
         });
         state.serverStatus = status;
+        state.serverFacets = facets;
+        populateFacetControls();
         return status;
       })
       .catch(function () {
@@ -142,6 +177,13 @@
     return (state.groups || []).find(function (group) { return group.id === state.selected; }) || null;
   }
 
+  function matchesFacets(id) {
+    var facets = id && state.serverFacets ? state.serverFacets.get(id) : null;
+    return ["system", "region", "organization"].every(function (key) {
+      return state.selectedFacets[key] === FACET_ALL || (facets && facets[key] === state.selectedFacets[key]);
+    });
+  }
+
   function applyFilter() {
     if (!isServerPage() || state.applying) return;
     state.applying = true;
@@ -150,10 +192,25 @@
       var rows = document.querySelectorAll("#root tbody tr");
       rows.forEach(function (row) {
         var id = serverIdFromRow(row);
-        var shouldHide = !!(id && group && !group.servers.has(id));
-        var isHidden = row.getAttribute("data-geoip-group-filter-hidden") === "true";
-        if (shouldHide && !isHidden) row.setAttribute("data-geoip-group-filter-hidden", "true");
-        if (!shouldHide && isHidden) row.removeAttribute("data-geoip-group-filter-hidden");
+        var shouldHideForGroup = !!(id && group && !group.servers.has(id));
+        var isGroupHidden = row.getAttribute("data-geoip-group-filter-hidden") === "true";
+        if (shouldHideForGroup && !isGroupHidden) row.setAttribute("data-geoip-group-filter-hidden", "true");
+        if (!shouldHideForGroup && isGroupHidden) row.removeAttribute("data-geoip-group-filter-hidden");
+
+        var online = id && state.serverStatus ? state.serverStatus.get(id) : undefined;
+        var shouldHideForStatus = state.selectedStatus === STATUS_ONLINE
+          ? online !== true
+          : state.selectedStatus === STATUS_OFFLINE
+            ? online !== false
+            : false;
+        var isStatusHidden = row.getAttribute("data-geoip-status-filter-hidden") === "true";
+        if (shouldHideForStatus && !isStatusHidden) row.setAttribute("data-geoip-status-filter-hidden", "true");
+        if (!shouldHideForStatus && isStatusHidden) row.removeAttribute("data-geoip-status-filter-hidden");
+
+        var shouldHideForFacet = !!id && !matchesFacets(id);
+        var isFacetHidden = row.getAttribute("data-geoip-facet-filter-hidden") === "true";
+        if (shouldHideForFacet && !isFacetHidden) row.setAttribute("data-geoip-facet-filter-hidden", "true");
+        if (!shouldHideForFacet && isFacetHidden) row.removeAttribute("data-geoip-facet-filter-hidden");
       });
       updateButtons();
       applyServerStatus();
@@ -167,6 +224,9 @@
     if (!root) return;
     root.querySelectorAll("button[data-group-id]").forEach(function (button) {
       button.setAttribute("aria-pressed", button.getAttribute("data-group-id") === state.selected ? "true" : "false");
+    });
+    root.querySelectorAll("button[data-status-filter]").forEach(function (button) {
+      button.setAttribute("aria-pressed", button.getAttribute("data-status-filter") === state.selectedStatus ? "true" : "false");
     });
   }
 
@@ -184,6 +244,72 @@
       applyFilter();
     });
     return button;
+  }
+
+  function makeStatusButton(value, label) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "geoip-admin-server-group-filter__button";
+    button.setAttribute("data-status-filter", value);
+    button.setAttribute("aria-pressed", value === state.selectedStatus ? "true" : "false");
+    button.textContent = label;
+    button.addEventListener("click", function () {
+      state.selectedStatus = value;
+      sessionStorage.setItem(STATUS_STORAGE_KEY, value);
+      applyFilter();
+    });
+    return button;
+  }
+
+  function facetLabel(value) {
+    return value === FACET_UNKNOWN ? "未知" : value;
+  }
+
+  function facetOptions(key) {
+    var values = new Set();
+    if (state.serverFacets) {
+      state.serverFacets.forEach(function (facets) { values.add(facets[key]); });
+    }
+    return Array.from(values).sort(function (left, right) {
+      if (left === FACET_UNKNOWN) return 1;
+      if (right === FACET_UNKNOWN) return -1;
+      return left.localeCompare(right, "zh-CN", { sensitivity: "base" });
+    });
+  }
+
+  function populateFacetControls() {
+    var root = document.getElementById(FILTER_ID);
+    if (!root) return;
+    root.querySelectorAll("select[data-facet-key]").forEach(function (select) {
+      var key = select.getAttribute("data-facet-key");
+      var selected = state.selectedFacets[key] || FACET_ALL;
+      select.replaceChildren(new Option("全部", FACET_ALL));
+      facetOptions(key).forEach(function (value) { select.add(new Option(facetLabel(value), value)); });
+      if (!Array.from(select.options).some(function (option) { return option.value === selected; })) {
+        selected = FACET_ALL;
+        state.selectedFacets[key] = selected;
+      }
+      select.value = selected;
+    });
+    sessionStorage.setItem(FACET_STORAGE_KEY, JSON.stringify(state.selectedFacets));
+  }
+
+  function makeFacetControl(key, label) {
+    var control = document.createElement("label");
+    control.className = "geoip-admin-server-group-filter__facet";
+    var text = document.createElement("span");
+    text.textContent = label;
+    var select = document.createElement("select");
+    select.setAttribute("data-facet-key", key);
+    select.setAttribute("aria-label", label + "筛选");
+    select.addEventListener("change", function () {
+      state.selectedFacets[key] = select.value;
+      sessionStorage.setItem(FACET_STORAGE_KEY, JSON.stringify(state.selectedFacets));
+      applyFilter();
+    });
+    control.appendChild(text);
+    control.appendChild(select);
+    return control;
   }
 
   function mountFilter() {
@@ -219,8 +345,30 @@
 
       wrapper.appendChild(label);
       wrapper.appendChild(list);
+
+      var statusGroup = document.createElement("div");
+      statusGroup.className = "geoip-admin-server-group-filter__status";
+      var statusLabel = document.createElement("span");
+      statusLabel.className = "geoip-admin-server-group-filter__label";
+      statusLabel.textContent = "在线状态";
+      var statusList = document.createElement("div");
+      statusList.className = "geoip-admin-server-group-filter__status-list";
+      statusList.appendChild(makeStatusButton(STATUS_ALL, "全部"));
+      statusList.appendChild(makeStatusButton(STATUS_ONLINE, "在线服务器"));
+      statusList.appendChild(makeStatusButton(STATUS_OFFLINE, "离线服务器"));
+      statusGroup.appendChild(statusLabel);
+      statusGroup.appendChild(statusList);
+      wrapper.appendChild(statusGroup);
+
+      var facets = document.createElement("div");
+      facets.className = "geoip-admin-server-group-filter__facets";
+      facets.appendChild(makeFacetControl("system", "系统"));
+      facets.appendChild(makeFacetControl("region", "地区"));
+      facets.appendChild(makeFacetControl("organization", "组织"));
+      wrapper.appendChild(facets);
       toolbar.parentElement.insertBefore(wrapper, toolbar.nextSibling);
-      applyFilter();
+      populateFacetControls();
+      requestServerStatus(false).then(applyFilter);
     });
   }
 
@@ -250,7 +398,7 @@
     state.observer.observe(document.documentElement, { childList: true, subtree: true });
     scheduleMount();
     window.setInterval(function () {
-      if (isServerPage()) requestServerStatus(true).then(applyServerStatus);
+      if (isServerPage()) requestServerStatus(true).then(applyFilter);
     }, 20000);
   }
 
