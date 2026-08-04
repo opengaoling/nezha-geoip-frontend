@@ -24,13 +24,53 @@
   font-size: 0.8125rem;
 }
 
+#root .geoip-admin-server-card-view__sort {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.375rem;
+  margin-left: auto;
+}
+
+#root .geoip-admin-server-card-view__sort select,
+#root .geoip-admin-server-card-view__sort-direction {
+  height: 2rem;
+  box-sizing: border-box;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+#root .geoip-admin-server-card-view__sort select {
+  max-width: min(12rem, 42vw);
+  padding: 0 1.5rem 0 0.5rem;
+}
+
+#root .geoip-admin-server-card-view__sort-direction {
+  padding: 0 0.5rem;
+  white-space: nowrap;
+}
+
+#root .geoip-admin-server-card-view__sort select:hover,
+#root .geoip-admin-server-card-view__sort-direction:hover {
+  border-color: hsl(var(--primary));
+}
+
 #root .geoip-admin-server-card-view__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
 }
 
 #root .geoip-admin-server-card {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
   min-width: 0;
   box-sizing: border-box;
   border: 1px solid hsl(var(--border));
@@ -48,13 +88,30 @@
 }
 
 #root .geoip-admin-server-card__header {
+  flex: 1 1 13rem;
   justify-content: space-between;
   gap: 0.75rem;
 }
 
 #root .geoip-admin-server-card__title {
+  flex: 1 1 auto;
   gap: 0.5rem;
   overflow: hidden;
+}
+
+#root .geoip-admin-server-card__selection {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+#root .geoip-admin-server-card__selection input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: hsl(var(--primary));
 }
 
 #root .geoip-admin-server-card__title strong {
@@ -92,10 +149,11 @@
 
 #root .geoip-admin-server-card__meta {
   display: flex;
+  flex: 1 1 24rem;
   min-width: 0;
   flex-wrap: wrap;
   gap: 0.375rem;
-  margin-top: 0.625rem;
+  margin-top: 0;
 }
 
 #root .geoip-admin-server-card__meta span {
@@ -111,14 +169,18 @@
 }
 
 #root .geoip-admin-server-card__metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex: 1 1 34rem;
+  min-width: 0;
+  flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.875rem;
+  margin-top: 0;
 }
 
 #root .geoip-admin-server-card__metric {
   display: flex;
+  flex: 1 1 4.5rem;
+  max-width: 8rem;
   min-width: 0;
   flex-direction: column;
   gap: 0.125rem;
@@ -137,8 +199,102 @@
   font-size: 0.75rem;
 }
 
+#root .geoip-admin-server-card__info-grid {
+  display: flex;
+  flex: 1 1 28rem;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+
+#root .geoip-admin-server-card__info {
+  display: flex;
+  min-width: 7rem;
+  max-width: 100%;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+#root .geoip-admin-server-card__info--ip {
+  min-width: 12rem;
+  flex: 1 1 12rem;
+}
+
+#root .geoip-admin-server-card__info-label {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+}
+
+#root .geoip-admin-server-card__info-value {
+  overflow: hidden;
+  color: hsl(var(--foreground));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+#root .geoip-admin-server-card__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-left: auto;
+}
+
+#root .geoip-admin-server-card__action {
+  min-height: 2rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+#root .geoip-admin-server-card__action:hover {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--accent));
+}
+
+#root .geoip-admin-server-card__action--danger {
+  border-color: rgb(248 113 113 / 0.7);
+  color: rgb(185 28 28);
+}
+
+#root .geoip-admin-server-card__action--danger:hover {
+  border-color: rgb(220 38 38);
+  background: rgb(254 226 226);
+}
+
 @media (max-width: 640px) {
-  #root .geoip-admin-server-card-view__grid {
-    grid-template-columns: 1fr;
+  #root .geoip-admin-server-card-view__heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  #root .geoip-admin-server-card-view__sort {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  #root .geoip-admin-server-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #root .geoip-admin-server-card__header,
+  #root .geoip-admin-server-card__meta,
+  #root .geoip-admin-server-card__metrics,
+  #root .geoip-admin-server-card__info-grid {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  #root .geoip-admin-server-card__actions {
+    width: 100%;
+    margin-left: 0;
   }
 }
