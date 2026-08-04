@@ -143,7 +143,7 @@
     grid.className = "geoip-admin-server-card-view__grid";
     view.appendChild(heading);
     view.appendChild(grid);
-    tableContainer.parentElement.insertBefore(view, tableContainer);
+    tableContainer.parentElement.appendChild(view);
     return view;
   }
 
@@ -159,9 +159,6 @@
     var count = view.querySelector(".geoip-admin-server-card-view__count");
     grid.replaceChildren.apply(grid, state.servers.map(renderCard));
     count.textContent = state.servers.length + " 台服务器";
-    document.querySelectorAll("[data-geoip-admin-original-table]").forEach(function (node) {
-      node.style.setProperty("display", "none", "important");
-    });
     document.dispatchEvent(new CustomEvent(DATA_EVENT, { detail: state.servers }));
   }
 

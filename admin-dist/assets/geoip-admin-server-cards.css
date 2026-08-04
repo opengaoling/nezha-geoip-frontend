@@ -1,7 +1,3 @@
-#root [data-geoip-admin-original-table="true"] {
-  display: none !important;
-}
-
 #root .geoip-admin-server-card-view {
   width: 100%;
   min-width: 0;
