@@ -189,9 +189,10 @@
     state.applying = true;
     try {
       var group = selectedGroup();
-      var rows = document.querySelectorAll("#root tbody tr");
-      rows.forEach(function (row) {
-        var id = serverIdFromRow(row);
+      var rows = Array.prototype.slice.call(document.querySelectorAll("#root tbody tr"));
+      var cards = Array.prototype.slice.call(document.querySelectorAll("#root [data-geoip-admin-server-card=\"true\"]"));
+      rows.concat(cards).forEach(function (row) {
+        var id = row.getAttribute("data-server-id") || serverIdFromRow(row);
         var shouldHideForGroup = !!(id && group && !group.servers.has(id));
         var isGroupHidden = row.getAttribute("data-geoip-group-filter-hidden") === "true";
         if (shouldHideForGroup && !isGroupHidden) row.setAttribute("data-geoip-group-filter-hidden", "true");
