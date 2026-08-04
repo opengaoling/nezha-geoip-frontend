@@ -184,6 +184,18 @@
     });
   }
 
+  function updateVisibleCount() {
+    var count = document.querySelector("#geoip-admin-server-card-view .geoip-admin-server-card-view__count");
+    if (!count) return;
+    var cards = Array.prototype.slice.call(document.querySelectorAll("#root [data-geoip-admin-server-card=\"true\"]"));
+    var visible = cards.filter(function (card) {
+      return card.getAttribute("data-geoip-group-filter-hidden") !== "true" &&
+        card.getAttribute("data-geoip-status-filter-hidden") !== "true" &&
+        card.getAttribute("data-geoip-facet-filter-hidden") !== "true";
+    }).length;
+    count.textContent = visible === cards.length ? cards.length + " 台服务器" : "显示 " + visible + " / 共 " + cards.length + " 台";
+  }
+
   function applyFilter() {
     if (!isServerPage() || state.applying) return;
     state.applying = true;
@@ -215,6 +227,7 @@
       });
       updateButtons();
       applyServerStatus();
+      updateVisibleCount();
     } finally {
       state.applying = false;
     }

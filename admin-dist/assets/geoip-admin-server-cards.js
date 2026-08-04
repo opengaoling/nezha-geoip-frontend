@@ -41,8 +41,9 @@
   }
 
   function bytes(value) {
+    if (value === null || value === undefined || value === "") return "-";
     var amount = Number(value);
-    if (!Number.isFinite(amount) || amount <= 0) return "-";
+    if (!Number.isFinite(amount) || amount < 0) return "-";
     var units = ["B", "KB", "MB", "GB", "TB"];
     var index = 0;
     while (amount >= 1024 && index < units.length - 1) {
@@ -50,6 +51,24 @@
       index += 1;
     }
     return (amount >= 10 || index === 0 ? amount.toFixed(0) : amount.toFixed(1)) + " " + units[index];
+  }
+
+  function numberValue() {
+    for (var index = 0; index < arguments.length; index += 1) {
+      if (arguments[index] === null || arguments[index] === undefined || arguments[index] === "") continue;
+      var value = Number(arguments[index]);
+      if (Number.isFinite(value)) return value;
+    }
+    return null;
+  }
+
+  function usage(used, total) {
+    var usedValue = numberValue(used);
+    var totalValue = numberValue(total);
+    if (totalValue !== null && totalValue > 0) {
+      return (usedValue === null ? "-" : bytes(usedValue)) + " / " + bytes(totalValue);
+    }
+    return usedValue === null ? "-" : bytes(usedValue);
   }
 
   function percent(value) {
@@ -69,14 +88,14 @@
   function value(server, key) {
     var stateData = server.state || {};
     var host = server.host || {};
-    if (key === "cpu") return stateData.cpu;
-    if (key === "memory") return stateData.mem_used || stateData.mem;
-    if (key === "memoryTotal") return host.mem_total;
-    if (key === "disk") return stateData.disk_used || stateData.disk;
-    if (key === "diskTotal") return host.disk_total;
-    if (key === "up") return stateData.net_out_speed;
-    if (key === "down") return stateData.net_in_speed;
-    return "";
+    if (key === "cpu") return numberValue(stateData.cpu, server.cpu);
+    if (key === "memory") return numberValue(stateData.mem_used, stateData.mem, server.mem_used);
+    if (key === "memoryTotal") return numberValue(host.mem_total, server.mem_total);
+    if (key === "disk") return numberValue(stateData.disk_used, stateData.disk, server.disk_used);
+    if (key === "diskTotal") return numberValue(host.disk_total, server.disk_total);
+    if (key === "up") return numberValue(stateData.net_out_speed, server.net_out_speed);
+    if (key === "down") return numberValue(stateData.net_in_speed, server.net_in_speed);
+    return null;
   }
 
   function cpuCores(server) {
@@ -88,8 +107,13 @@
 
   function cpuType(server) {
     var virtualization = String((server.host && server.host.virtualization) || "").trim();
-    if (!virtualization || /^(none|physical|bare[ -]?metal|native)$/i.test(virtualization)) return "物理";
-    return "虚拟 · " + virtualization;
+    var cpu = server.host && server.host.cpu;
+    var cpuDescription = Array.isArray(cpu) ? cpu.join(" ") : String(cpu || "");
+    if (/(kvm|qemu|xen|vmware|hyper[- ]?v|lxc|docker|container|openvz|vserver|bhyve|virtualbox|parallels|wsl|firecracker)/i.test(virtualization + " " + cpuDescription)) {
+      return "虚拟" + (virtualization ? " · " + virtualization : "");
+    }
+    if (/^(none|physical|bare[ -]?metal|native)$/i.test(virtualization)) return "物理";
+    return "未知";
   }
 
   function serverIps(server) {
@@ -160,7 +184,28 @@
     return metric;
   }
 
-  function renderInfo(label, content, className) {
+  function copyText(content, button) {
+    if (!content || content === "-") return;
+    var copied = function () {
+      var original = button.textContent;
+      button.textContent = "已复制";
+      window.setTimeout(function () { button.textContent = original; }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(content).then(copied).catch(function () {});
+      return;
+    }
+    var textarea = document.createElement("textarea");
+    textarea.value = content;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try { document.execCommand("copy"); copied(); } catch (_) {}
+    textarea.remove();
+  }
+
+  function renderInfo(label, content, className, copyable) {
     var info = document.createElement("div");
     info.className = "geoip-admin-server-card__info" + (className ? " " + className : "");
     var caption = document.createElement("span");
@@ -171,7 +216,19 @@
     valueNode.textContent = content || "-";
     valueNode.title = content || "-";
     info.appendChild(caption);
-    info.appendChild(valueNode);
+    var valueRow = document.createElement("div");
+    valueRow.className = "geoip-admin-server-card__info-value-row";
+    valueRow.appendChild(valueNode);
+    if (copyable && content && content !== "-") {
+      var copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.className = "geoip-admin-server-card__copy";
+      copyButton.textContent = "复制";
+      copyButton.title = "复制" + label;
+      copyButton.addEventListener("click", function () { copyText(content, copyButton); });
+      valueRow.appendChild(copyButton);
+    }
+    info.appendChild(valueRow);
     return info;
   }
 
@@ -230,14 +287,64 @@
     return label;
   }
 
-  function renderActionButton(label, serverId, position, danger) {
+  function renderActionButton(label, serverId, position, danger, invokeOriginal) {
     var button = document.createElement("button");
     button.type = "button";
     button.className = "geoip-admin-server-card__action" + (danger ? " geoip-admin-server-card__action--danger" : "");
     button.textContent = label;
     button.title = label;
-    button.addEventListener("click", function () { clickOriginalAction(serverId, position); });
+    if (invokeOriginal !== false) button.addEventListener("click", function () { clickOriginalAction(serverId, position); });
     return button;
+  }
+
+  function renderMoreMenu(server, ips) {
+    var wrapper = document.createElement("div");
+    wrapper.className = "geoip-admin-server-card__more";
+    var button = renderActionButton("更多", server.id, 2, false, false);
+    button.setAttribute("aria-expanded", "false");
+    var menu = document.createElement("div");
+    menu.className = "geoip-admin-server-card__more-menu";
+    menu.setAttribute("role", "menu");
+    [
+      ["复制服务器名称", server.name || "未命名服务器"],
+      ["复制服务器 ID", displayId(server)],
+      ["复制 IP", ips.length ? ips.join(" / ") : ""]
+    ].forEach(function (item) {
+      var itemButton = document.createElement("button");
+      itemButton.type = "button";
+      itemButton.className = "geoip-admin-server-card__more-item";
+      itemButton.textContent = item[0];
+      itemButton.disabled = !item[1];
+      itemButton.addEventListener("click", function () {
+        if (!itemButton.disabled) copyText(item[1], itemButton);
+        menu.hidden = true;
+        button.setAttribute("aria-expanded", "false");
+      });
+      menu.appendChild(itemButton);
+    });
+    menu.hidden = true;
+    button.addEventListener("click", function (event) {
+      event.stopPropagation();
+      menu.hidden = !menu.hidden;
+      button.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
+    });
+    document.addEventListener("click", function () {
+      menu.hidden = true;
+      button.setAttribute("aria-expanded", "false");
+    });
+    wrapper.appendChild(button);
+    wrapper.appendChild(menu);
+    return wrapper;
+  }
+
+  function renderSection(title, className, content) {
+    var section = document.createElement("section");
+    section.className = "geoip-admin-server-card__section geoip-admin-server-card__section--" + className;
+    var heading = document.createElement("h3");
+    heading.textContent = title;
+    section.appendChild(heading);
+    section.appendChild(content);
+    return section;
   }
 
   function renderCard(server) {
@@ -286,30 +393,24 @@
       ["分组", groupLabel || "未分组"],
       ["所属用户", ownerLabel || "-"],
       ["版本", host.version || "未知"]
-    ].forEach(function (item) {
-      var tag = document.createElement("span");
-      tag.textContent = item[0] + " · " + item[1];
-      tag.title = item[1];
-      meta.appendChild(tag);
-    });
+    ].forEach(function (item) { meta.appendChild(renderInfo(item[0], item[1])); });
 
     var metrics = document.createElement("div");
     metrics.className = "geoip-admin-server-card__metrics";
     metrics.appendChild(renderMetric("CPU", percent(value(server, "cpu"))));
-    metrics.appendChild(renderMetric("内存", value(server, "memoryTotal") ? bytes(value(server, "memory")) + " / " + bytes(value(server, "memoryTotal")) : "-"));
-    metrics.appendChild(renderMetric("存储", value(server, "diskTotal") ? bytes(value(server, "disk")) + " / " + bytes(value(server, "diskTotal")) : "-"));
+    metrics.appendChild(renderMetric("内存", usage(value(server, "memory"), value(server, "memoryTotal"))));
+    metrics.appendChild(renderMetric("存储", usage(value(server, "disk"), value(server, "diskTotal"))));
     metrics.appendChild(renderMetric("运行时间", uptime((server.state || {}).uptime)));
     metrics.appendChild(renderMetric("上行", bytes(value(server, "up")) + "/s"));
     metrics.appendChild(renderMetric("下行", bytes(value(server, "down")) + "/s"));
-    metrics.appendChild(renderMetric("上行总量", bytes((server.state || {}).net_out_transfer)));
-    metrics.appendChild(renderMetric("下行总量", bytes((server.state || {}).net_in_transfer)));
+    metrics.appendChild(renderMetric("上行总量", bytes(numberValue((server.state || {}).net_out_transfer, server.net_out_transfer))));
+    metrics.appendChild(renderMetric("下行总量", bytes(numberValue((server.state || {}).net_in_transfer, server.net_in_transfer))));
     metrics.appendChild(renderMetric("CPU核心", cpuCores(server) ? cpuCores(server) + " 核" : "-"));
     metrics.appendChild(renderMetric("CPU类型", cpuType(server)));
 
     var info = document.createElement("div");
     info.className = "geoip-admin-server-card__info-grid";
-    info.appendChild(renderInfo("IP", ips.length ? ips.join(" / ") : "-", "geoip-admin-server-card__info--ip"));
-    info.appendChild(renderInfo("UUID", server.uuid || "-"));
+    info.appendChild(renderInfo("IP", ips.length ? ips.join(" / ") : "-", "geoip-admin-server-card__info--ip", true));
     info.appendChild(renderInfo("备注", server.note || server.public_note || "-"));
     info.appendChild(renderInfo("DDNS", server.enable_ddns ? "已启用" : "未启用"));
     info.appendChild(renderInfo("访客可见", server.hide_for_guest ? "否" : "是"));
@@ -318,14 +419,17 @@
     actions.className = "geoip-admin-server-card__actions";
     actions.appendChild(renderActionButton("编辑", server.id, 0, false));
     actions.appendChild(renderActionButton("终端", server.id, 1, false));
-    actions.appendChild(renderActionButton("更多", server.id, 2, false));
+    actions.appendChild(renderMoreMenu(server, ips));
     actions.appendChild(renderActionButton("删除", server.id, "delete", true));
 
-    card.appendChild(header);
-    card.appendChild(meta);
-    card.appendChild(metrics);
-    card.appendChild(info);
-    card.appendChild(actions);
+    var top = document.createElement("div");
+    top.className = "geoip-admin-server-card__top";
+    top.appendChild(header);
+    top.appendChild(actions);
+    card.appendChild(top);
+    card.appendChild(renderSection("基本信息", "identity", meta));
+    card.appendChild(renderSection("运行指标", "metrics", metrics));
+    card.appendChild(renderSection("网络与备注", "details", info));
     return card;
   }
 
