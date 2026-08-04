@@ -57,6 +57,15 @@
     return Number.isFinite(amount) ? Math.max(0, Math.min(100, amount)).toFixed(1) + "%" : "-";
   }
 
+  function uptime(value) {
+    var seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds <= 0) return "-";
+    var days = Math.floor(seconds / 86400);
+    var hours = Math.floor(seconds % 86400 / 3600);
+    if (days > 0) return days + " 天 " + hours + " 小时";
+    return Math.floor(seconds / 3600) + " 小时";
+  }
+
   function value(server, key) {
     var stateData = server.state || {};
     var host = server.host || {};
@@ -289,8 +298,11 @@
     metrics.appendChild(renderMetric("CPU", percent(value(server, "cpu"))));
     metrics.appendChild(renderMetric("内存", value(server, "memoryTotal") ? bytes(value(server, "memory")) + " / " + bytes(value(server, "memoryTotal")) : "-"));
     metrics.appendChild(renderMetric("存储", value(server, "diskTotal") ? bytes(value(server, "disk")) + " / " + bytes(value(server, "diskTotal")) : "-"));
+    metrics.appendChild(renderMetric("运行时间", uptime((server.state || {}).uptime)));
     metrics.appendChild(renderMetric("上行", bytes(value(server, "up")) + "/s"));
     metrics.appendChild(renderMetric("下行", bytes(value(server, "down")) + "/s"));
+    metrics.appendChild(renderMetric("上行总量", bytes((server.state || {}).net_out_transfer)));
+    metrics.appendChild(renderMetric("下行总量", bytes((server.state || {}).net_in_transfer)));
     metrics.appendChild(renderMetric("CPU核心", cpuCores(server) ? cpuCores(server) + " 核" : "-"));
     metrics.appendChild(renderMetric("CPU类型", cpuType(server)));
 
