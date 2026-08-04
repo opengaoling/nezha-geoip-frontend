@@ -3,8 +3,6 @@
   window.__geoipSessionTimeoutSettingInstalled = true;
 
   var currentTimeout = null;
-  var MIN_TIMEOUT = 24;
-  var MAX_TIMEOUT = 720;
   var inputId = "geoip-jwt-timeout-input";
   var fieldId = "geoip-jwt-timeout-field";
 
@@ -20,7 +18,7 @@
   function rememberTimeoutFromResponse(data) {
     var value = data && data.data && data.data.config && data.data.config.jwt_timeout;
     if (Number.isFinite(Number(value)) && Number(value) > 0) {
-      currentTimeout = Math.max(MIN_TIMEOUT, Math.min(MAX_TIMEOUT, Math.round(Number(value))));
+      currentTimeout = Number(value);
       var input = document.getElementById(inputId);
       if (input && document.activeElement !== input) input.value = String(currentTimeout);
     }
@@ -34,8 +32,8 @@
     if (!Number.isFinite(value)) return currentTimeout;
 
     value = Math.round(value);
-    if (value < MIN_TIMEOUT) value = MIN_TIMEOUT;
-    if (value > MAX_TIMEOUT) value = MAX_TIMEOUT;
+    if (value < 1) value = 1;
+    if (value > 720) value = 720;
     input.value = String(value);
     currentTimeout = value;
     return value;
@@ -81,8 +79,8 @@
       '">登录会话时长（小时）</label>' +
       '<input id="' +
       inputId +
-      '" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring" type="number" min="24" max="720" step="1" inputmode="numeric">' +
-      '<p class="text-xs text-muted-foreground">范围 24-720 小时，保存后新登录和后续刷新生效。</p>';
+      '" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring" type="number" min="1" max="720" step="1" inputmode="numeric">' +
+      '<p class="text-xs text-muted-foreground">范围 1-720 小时，保存后新登录和后续刷新生效。</p>';
     return wrapper;
   }
 
@@ -104,7 +102,7 @@
     var field = makeField();
     anchor.parentElement.insertBefore(field, anchor.nextSibling);
     var input = document.getElementById(inputId);
-    input.value = String(currentTimeout || MIN_TIMEOUT);
+    input.value = String(currentTimeout || 1);
   }
 
   var observer = new MutationObserver(insertField);
