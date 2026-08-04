@@ -184,14 +184,27 @@
     });
   }
 
+  function updateVisibleCount() {
+    var count = document.querySelector("#geoip-admin-server-card-view .geoip-admin-server-card-view__count");
+    if (!count) return;
+    var cards = Array.prototype.slice.call(document.querySelectorAll("#root [data-geoip-admin-server-card=\"true\"]"));
+    var visible = cards.filter(function (card) {
+      return card.getAttribute("data-geoip-group-filter-hidden") !== "true" &&
+        card.getAttribute("data-geoip-status-filter-hidden") !== "true" &&
+        card.getAttribute("data-geoip-facet-filter-hidden") !== "true";
+    }).length;
+    count.textContent = visible === cards.length ? cards.length + " 台服务器" : "显示 " + visible + " / 共 " + cards.length + " 台";
+  }
+
   function applyFilter() {
     if (!isServerPage() || state.applying) return;
     state.applying = true;
     try {
       var group = selectedGroup();
-      var rows = document.querySelectorAll("#root tbody tr");
-      rows.forEach(function (row) {
-        var id = serverIdFromRow(row);
+      var rows = Array.prototype.slice.call(document.querySelectorAll("#root tbody tr"));
+      var cards = Array.prototype.slice.call(document.querySelectorAll("#root [data-geoip-admin-server-card=\"true\"]"));
+      rows.concat(cards).forEach(function (row) {
+        var id = row.getAttribute("data-server-id") || serverIdFromRow(row);
         var shouldHideForGroup = !!(id && group && !group.servers.has(id));
         var isGroupHidden = row.getAttribute("data-geoip-group-filter-hidden") === "true";
         if (shouldHideForGroup && !isGroupHidden) row.setAttribute("data-geoip-group-filter-hidden", "true");
@@ -214,6 +227,7 @@
       });
       updateButtons();
       applyServerStatus();
+      updateVisibleCount();
     } finally {
       state.applying = false;
     }

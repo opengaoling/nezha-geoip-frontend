@@ -104,15 +104,18 @@
   color: rgb(134 239 172);
 }
 
-#root tr[data-geoip-group-filter-hidden="true"] {
+#root tr[data-geoip-group-filter-hidden="true"],
+#root [data-geoip-admin-server-card="true"][data-geoip-group-filter-hidden="true"] {
   display: none !important;
 }
 
-#root tr[data-geoip-status-filter-hidden="true"] {
+#root tr[data-geoip-status-filter-hidden="true"],
+#root [data-geoip-admin-server-card="true"][data-geoip-status-filter-hidden="true"] {
   display: none !important;
 }
 
-#root tr[data-geoip-facet-filter-hidden="true"] {
+#root tr[data-geoip-facet-filter-hidden="true"],
+#root [data-geoip-admin-server-card="true"][data-geoip-facet-filter-hidden="true"] {
   display: none !important;
 }
 
