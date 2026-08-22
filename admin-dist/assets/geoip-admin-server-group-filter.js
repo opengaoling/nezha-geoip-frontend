@@ -31,7 +31,10 @@
       organization: savedFacets.organization || FACET_ALL
     },
     observer: null,
-    applying: false
+    applying: false,
+    selectionGuardInstalled: false,
+    selectionSyncTimer: null,
+    selectionSyncing: false
   };
 
   function isServerPage() {
@@ -184,6 +187,149 @@
     });
   }
 
+  function isFilterHidden(row) {
+    return row.getAttribute("data-geoip-group-filter-hidden") === "true" ||
+      row.getAttribute("data-geoip-status-filter-hidden") === "true" ||
+      row.getAttribute("data-geoip-facet-filter-hidden") === "true";
+  }
+
+  function serverRows() {
+    return Array.prototype.filter.call(document.querySelectorAll("#root tbody tr"), function (row) {
+      return !!serverIdFromRow(row);
+    });
+  }
+
+  function rowCheckbox(row) {
+    return row.querySelector('button[role="checkbox"][aria-label="Select row"], [role="checkbox"][aria-label="Select row"], input[type="checkbox"][aria-label="Select row"]');
+  }
+
+  function checkboxChecked(control) {
+    if (!control) return false;
+    if (control.type === "checkbox") return !!control.checked;
+    return control.getAttribute("aria-checked") === "true" || control.getAttribute("data-state") === "checked";
+  }
+
+  function clickCheckboxTo(control, checked) {
+    if (!control || checkboxChecked(control) === checked || control.disabled || control.getAttribute("aria-disabled") === "true") return;
+    control.click();
+  }
+
+  function selectAllCheckbox() {
+    return document.querySelector('#root thead button[role="checkbox"][aria-label="Select all"], #root thead [role="checkbox"][aria-label="Select all"], #root thead input[type="checkbox"][aria-label="Select all"]');
+  }
+
+  function setCheckboxPresentation(control, stateName) {
+    if (!control) return;
+    var ariaChecked = stateName === "checked" ? "true" : stateName === "indeterminate" ? "mixed" : "false";
+    if (control.type === "checkbox") {
+      control.checked = stateName === "checked";
+      control.indeterminate = stateName === "indeterminate";
+    }
+    control.setAttribute("aria-checked", ariaChecked);
+    control.setAttribute("data-state", stateName);
+    control.querySelectorAll("[data-state]").forEach(function (node) {
+      node.setAttribute("data-state", stateName);
+    });
+  }
+
+  function syncSelectAllCheckbox() {
+    if (!isServerPage()) return;
+    var control = selectAllCheckbox();
+    if (!control) return;
+    var controls = serverRows()
+      .filter(function (row) { return !isFilterHidden(row); })
+      .map(rowCheckbox)
+      .filter(Boolean);
+    if (!controls.length) {
+      setCheckboxPresentation(control, "unchecked");
+      return;
+    }
+    var selectedCount = controls.filter(checkboxChecked).length;
+    setCheckboxPresentation(
+      control,
+      selectedCount === controls.length ? "checked" : selectedCount > 0 ? "indeterminate" : "unchecked"
+    );
+  }
+
+  function pruneHiddenSelections() {
+    if (!isServerPage() || state.selectionSyncing) return;
+    state.selectionSyncing = true;
+    try {
+      serverRows().forEach(function (row) {
+        if (!isFilterHidden(row)) return;
+        clickCheckboxTo(rowCheckbox(row), false);
+      });
+    } finally {
+      state.selectionSyncing = false;
+    }
+    window.setTimeout(syncSelectAllCheckbox, 0);
+  }
+
+  function scheduleSelectionSync() {
+    window.clearTimeout(state.selectionSyncTimer);
+    state.selectionSyncTimer = window.setTimeout(function () {
+      pruneHiddenSelections();
+      syncSelectAllCheckbox();
+    }, 0);
+  }
+
+  function toggleVisibleSelection() {
+    if (!isServerPage() || state.selectionSyncing) return;
+    state.selectionSyncing = true;
+    try {
+      var visibleControls = serverRows()
+        .filter(function (row) { return !isFilterHidden(row); })
+        .map(rowCheckbox)
+        .filter(Boolean);
+      var hiddenControls = serverRows()
+        .filter(isFilterHidden)
+        .map(rowCheckbox)
+        .filter(Boolean);
+      var shouldSelectVisible = visibleControls.length > 0 && !visibleControls.every(checkboxChecked);
+      visibleControls.forEach(function (control) { clickCheckboxTo(control, shouldSelectVisible); });
+      hiddenControls.forEach(function (control) { clickCheckboxTo(control, false); });
+    } finally {
+      state.selectionSyncing = false;
+    }
+    window.setTimeout(syncSelectAllCheckbox, 0);
+  }
+
+  function checkboxFromEventTarget(target) {
+    return target && target.closest ? target.closest('button[role="checkbox"], [role="checkbox"], input[type="checkbox"]') : null;
+  }
+
+  function isSelectAllCheckbox(control) {
+    return !!control &&
+      control.closest("#root thead") &&
+      (control.getAttribute("aria-label") || "").toLowerCase() === "select all";
+  }
+
+  function handleSelectAllClick(event) {
+    var control = checkboxFromEventTarget(event.target);
+    if (!isSelectAllCheckbox(control)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    toggleVisibleSelection();
+  }
+
+  function handleSelectAllKeydown(event) {
+    if (event.key !== " " && event.key !== "Enter") return;
+    var control = checkboxFromEventTarget(event.target);
+    if (!isSelectAllCheckbox(control)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    toggleVisibleSelection();
+  }
+
+  function installSelectionGuard() {
+    if (state.selectionGuardInstalled) return;
+    document.addEventListener("click", handleSelectAllClick, true);
+    document.addEventListener("keydown", handleSelectAllKeydown, true);
+    state.selectionGuardInstalled = true;
+  }
+
   function applyFilter() {
     if (!isServerPage() || state.applying) return;
     state.applying = true;
@@ -214,6 +360,7 @@
       });
       updateButtons();
       applyServerStatus();
+      scheduleSelectionSync();
     } finally {
       state.applying = false;
     }
@@ -391,6 +538,7 @@
   }
 
   function boot() {
+    installSelectionGuard();
     patchHistory("pushState");
     patchHistory("replaceState");
     window.addEventListener("popstate", scheduleMount);
