@@ -12,16 +12,19 @@ container remains self-contained. The files are still served as external static
 assets at runtime, so theme/resource changes do not require embedding assets
 inside the Go binary.
 
-## Sync Into Panel Repository
+## Build Flow
 
-From this repository:
+- The `nezha-panel` image build checks out this repo and copies `admin-dist/`
+  and `user-dist/` into the image (replaces the old sync-to-panel step).
+- The `argo-nezha-v1` image bakes these files into
+  `/dashboard/default-frontend/` as the runtime fallback.
+- On the live host, `/dashboard/{admin,user}-dist` are bind mounts over
+  `/root/argo-nezha-v1/dashboard/{admin,user}-dist`, so edits there take
+  effect immediately without any rebuild.
 
-```sh
-./scripts/sync-to-panel.sh /path/to/nezha-geoip-panel
-```
+To ship a frontend-only update: push to this repo, then trigger
+`build-dashboard-app-image` (nezha-panel) and `build-docker-image`
+(argo-nezha-v1) manually, pull + recreate the container.
 
-The script replaces:
-
-- `/path/to/nezha-geoip-panel/cmd/dashboard/admin-dist`
-- `/path/to/nezha-geoip-panel/cmd/dashboard/user-dist`
+`scripts/sync-to-panel.sh` remains for local panel development only.
 
